@@ -6,8 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 type Cat struct {
@@ -72,30 +73,50 @@ func addDog(c echo.Context) error {
 	dog := Dog{}
 	defer c.Request().Body.Close()
 
-	b, err := ioutil.ReadAll(c.Request().Body)
+	err := json.NewDecoder(c.Request().Body).Decode(&dog)
 	if err != nil {
 		log.Printf("failed reading the request body for add dogs: %v", err)
-		return c.String(http.StatusInternalServerError, "")
-	}
-
-	err = json.Unmarshal(b, &dog)
-	if err != nil {
-		log.Printf("failed unmarshaling the request body for add dogs: %v", err)
-		return c.String(http.StatusInternalServerError, "")
+		return echo.NewHTTPError(http.StatusInternalServerError, "")
 	}
 
 	log.Printf("this is your dog: %v", dog)
-	return c.JSON(http.StatusOK, "we got your dog")
+	return c.JSON(http.StatusOK, dog)
+}
+
+func addHamster(c echo.Context) error {
+	hamster := Hamster{}
+	defer c.Request().Body.Close()
+
+	err := c.Bind(&hamster)
+	if err != nil {
+		log.Printf("failed reading the request body for add hamsters: %v", err)
+		return c.String(http.StatusInternalServerError, "")
+	}
+	log.Printf("this is your hamster: %v", hamster)
+	return c.JSON(http.StatusOK, hamster)
+}
+
+func mainAdmin(c echo.Context) error {
+	return c.String(http.StatusOK, "hello admin")
 }
 
 func main() {
+	port := os.Getenv("MY_APP_PORT")
+	if port == "" {
+		port = "8080"
+	}
 	fmt.Println("Welcome to the server")
 
 	e := echo.New()
+
+	g := e.Group("/admin")
+	g.GET("/main", mainAdmin)
 
 	e.GET("/", yallo)
 	e.GET("/cats/:data", getCats)
 	e.POST("/cats", addCat)
 	e.POST("/dogs", addDog)
-	e.Start(":8000")
+	e.POST("/hamsters", addHamster)
+	e.Logger.Print("listening on port " + port)
+	e.Logger.Fatal(e.Start(fmt.Sprintf("localhost:%s", port)))
 }
