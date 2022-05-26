@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -100,6 +101,34 @@ func addHamster(c echo.Context) error {
 func mainAdmin(c echo.Context) error {
 	return c.String(http.StatusOK, "hello admin")
 }
+func mainCookie(c echo.Context) error {
+	return c.String(http.StatusOK, "you are on the not yet secret cookie page")
+}
+
+func login(c echo.Context) error {
+	username := c.QueryParam("username")
+	password := c.QueryParam("password")
+
+	if username == "sakura" && password == "miyawaki" {
+		// return c.JSON(http.StatusOK, map[string]string{
+		// 	"message": "you are logged in",
+		// })
+		cookie := &http.Cookie{}
+
+		// this is same
+		// cookie := new(http.Cookie)
+		cookie.Name = "sessionID"
+		cookie.Value = "some_string"
+		cookie.Expires = time.Now().Add(48 * time.Hour)
+		c.SetCookie(cookie)
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": "you are logged in",
+		})
+	}
+	return c.JSON(http.StatusUnauthorized, map[string]string{
+		"message": "you are not logged in",
+	})
+}
 
 func main() {
 	port := os.Getenv("MY_APP_PORT")
@@ -110,14 +139,15 @@ func main() {
 
 	e := echo.New()
 
-	g := e.Group("/admin")
+	adminGroup := e.Group("/admin")
+	cookieGroup := e.Group("/cookie")
 
 	// this is logs the server interaction
-	g.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+	adminGroup.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: `[${time_rfc3339}] ${status} ${method} ${host}${path} ${latency_human}` + "\n",
 	}))
 
-	g.Use(middleware.BasicAuth(func(username string, password string, c echo.Context) (bool, error) {
+	adminGroup.Use(middleware.BasicAuth(func(username string, password string, c echo.Context) (bool, error) {
 		// check in the DB
 		if username == "sakura" && password == "miyawaki" {
 			return true, nil
@@ -126,8 +156,10 @@ func main() {
 		return false, nil
 	}))
 
-	g.GET("/main", mainAdmin)
+	cookieGroup.GET("/main", mainCookie)
+	adminGroup.GET("/main", mainAdmin)
 
+	e.GET("/login", login)
 	e.GET("/", yallo)
 	e.GET("/cats/:data", getCats)
 	e.POST("/cats", addCat)
