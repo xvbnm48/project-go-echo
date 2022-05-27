@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -130,6 +131,35 @@ func login(c echo.Context) error {
 	})
 }
 
+func ServerHeader(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		c.Response().Header().Set(echo.HeaderServer, "Echo/4.0")
+		c.Response().Header().Set("notReallyHeader", "thisHavenNoMeaning")
+
+		return next(c)
+	}
+}
+
+func checkCookie(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		cookie, err := c.Cookie("sessionID")
+		if err != nil {
+			if strings.Contains(err.Error(), "named cookie not present") {
+				return c.String(http.StatusUnauthorized, "you dont have any cookie")
+			}
+
+			log.Println(err)
+			return err
+		}
+
+		if cookie.Value == "some_string" {
+			return next(c)
+		}
+
+		return c.String(http.StatusUnauthorized, "you dont have the right cookie, cookie")
+	}
+}
+
 func main() {
 	port := os.Getenv("MY_APP_PORT")
 	if port == "" {
@@ -138,6 +168,7 @@ func main() {
 	fmt.Println("Welcome to the server")
 
 	e := echo.New()
+	e.Use(ServerHeader)
 
 	adminGroup := e.Group("/admin")
 	cookieGroup := e.Group("/cookie")
